@@ -18,17 +18,17 @@ have foreign keys between themselves, and whose data is all logically related.
 
 For example, consider the following two models:
 
-from django.utils import timezone
+    from django.utils import timezone
 
-class Tweet(models.Model):
-    json = models.TextField()
-    user = models.TextField()
-    created_at = models.DateTimeField(default=timezone.now)
+    class Tweet(models.Model):
+        json = models.TextField()
+        user = models.TextField()
+        created_at = models.DateTimeField(default=timezone.now)
 
 
-class Retweet(models.Model):
-    retweet = models.ForeignKey(Tweet)
-    retweeted = models.ForeignKey(Tweet)
+    class Retweet(models.Model):
+        retweet = models.ForeignKey(Tweet)
+        retweeted = models.ForeignKey(Tweet)
 
 
 A Retweet instance relates two tweets: the retweeting tweet, and the retweeted
@@ -48,36 +48,36 @@ correct partition with the relationships to the correct parent Tweet table.
 
 We do that using a PartitionForeignKey.
 
-from django.utils import timezone
-from parting import PartitionManager
+    from django.utils import timezone
+    from parting import PartitionManager
 
-def _key_for_date(dt):
-    return dt.strftime('%Y%m')
+    def _key_for_date(dt):
+        return dt.strftime('%Y%m')
 
-class TweetPartitionManager(PartitionManager):
+    class TweetPartitionManager(PartitionManager):
 
-    def partition_key(self, tweet):
-        return _key_for_date(tweet.created_at)
+        def partition_key(self, tweet):
+            return _key_for_date(tweet.created_at)
 
-    def current_partition(self):
-        return _key_for_date(timezone.now())
+        def current_partition(self):
+            return _key_for_date(timezone.now())
 
-    def next_partition(self):
-        one_months_time = timezone.now() + datetime.timedelta(months=1)
-        return _key_for_date(one_months_time)
-
-
-class Tweet(models.Model):
-    json = models.TextField()
-    user = models.TextField()
-    created_at = models.DateTimeField(default=timezone.now)
-
-    objects = TweetPartitionManager()
+        def next_partition(self):
+            one_months_time = timezone.now() + datetime.timedelta(months=1)
+            return _key_for_date(one_months_time)
 
 
-class Retweet(models.Model):
-    retweet = models.ForeignKey(Tweet)
-    retweeted = models.ForeignKey(Tweet)
+    class Tweet(models.Model):
+        json = models.TextField()
+        user = models.TextField()
+        created_at = models.DateTimeField(default=timezone.now)
+
+        objects = TweetPartitionManager()
+
+
+    class Retweet(models.Model):
+        retweet = models.ForeignKey(Tweet)
+        retweeted = models.ForeignKey(Tweet)
 
 
 
