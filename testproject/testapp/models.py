@@ -10,13 +10,13 @@ def _key_from_dt(dt):
 
 class TweetManager(PartitionManager):
 
-    def partition_key(self, tweet):
+    def partition_key_for(self, tweet):
         return _key_from_dt(tweet.created)
 
-    def current_partition(self):
+    def current_partition_key(self):
         return _key_from_dt(timezone.now())
 
-    def next_partition(self):
+    def next_partition_key(self):
         return _key_from_dt(timezone.now() + relativedelta(months=+1))
 
 

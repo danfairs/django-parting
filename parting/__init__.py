@@ -1,1 +1,1 @@
-from .models import PartitionForeignKey, PartitionMixin, PartitionManager
+from .models import PartitionForeignKey, PartitionManager
