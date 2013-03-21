@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-from parting import PartitionManager
+from parting import PartitionForeignKey, PartitionManager
 from dateutil import relativedelta
 
 
@@ -27,8 +27,11 @@ class Tweet(models.Model):
 
     objects = TweetManager()
 
+    class Meta:
+        abstract = True
+
 
 class Star(models.Model):
 
     user = models.TextField()
-    tweet = models.ForeignKey(Tweet)
+    tweet = PartitionForeignKey(Tweet)
