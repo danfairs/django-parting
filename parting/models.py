@@ -5,11 +5,31 @@ from django.db.models import get_model
 _marker = object()
 
 
+class PartitionRegistry(object):
+
+    def __init__(self):
+        # We're not using a defaultdict(list) here to avoid clunky gymnastics
+        # in child_models_for polluting the structure. This keeps a mapping
+        # of parent model -> list of partitioned foreign keys
+        self.partitioned_targets = {}
+
+    def register_foreign_key(self, fk):
+        self.partitioned_targets.setdefault(fk.to, []).append(fk)
+
+    def foreign_keys_referencing(self, model):
+        return self.partitioned_targets.get(model, [])
+
+_registry = PartitionRegistry()
+
+
 class PartitionManager(object):
     """
     Manager to provide helpers for partitions. Note that this isn't actually
     a real manager, it just provides a manager-like API.
     """
+
+    def __init__(self, partition_registry=_registry):
+        self.registry = partition_registry
 
     # Methods that subclasses should override
     def partition_key_for(self, ob):
@@ -28,6 +48,7 @@ class PartitionManager(object):
     def next_partition_key(self):
         raise NotImplementedError()
 
+    # Utility methods
     def ensure_current_partition(self):
         """ Make sure the current partition's model exists. Note that this
         does not actually create any tables. Returns the model for the
@@ -65,6 +86,15 @@ class PartitionManager(object):
                 else:
                     raise AttributeError('{} already exists in {}'.format(
                         model_name, module))
+
+                # Find any PartitionForeignKeys that point to our parent model,
+                # and generate partitions of those source models
+                for pfk in self.registry.foreign_keys_referencing(self.model):
+                    if not hasattr(pfk.cls, '_partition_manager'):
+                        raise AttributeError(
+                            'Target model {} does not have a partition '
+                            'manager'.format(pfk))
+                    pfk.cls._partition_manager.ensure_partition(partition_key)
             finally:
                 imp.release_lock()
         return model
@@ -77,6 +107,11 @@ class PartitionManager(object):
 
         self.model = model
         setattr(model, name, self)
+
+        # We also have to keep a reference to ourself in a standard attribute
+        # name, so that ensure_partition can find us when processing partition
+        # foriengn keys
+        model._partition_manager = self
 
     def _model_name_for_partition(self, partition_key):
         return '{}_{}'.format(
@@ -92,9 +127,28 @@ class PartitionManager(object):
 
 
 class PartitionForeignKey(object):
+    """ This class is really just a placeholder. When the target of the
+    foreign key has a partition generated, this will be replaced by a real
+    foreign key pointing to the new, generated partition.
+    """
 
-    def __init__(self, *args, **kw):
-        pass
+    def __init__(self, to, partition_registry=_registry, *args, **kwargs):
+        """ Store the args to the fk, and validate that what we are pointing
+        to is a partitioned model (TODO)
+        """
+        self.to = to
+        self.args = args
+        self.kwargs = kwargs
+        self.registry = partition_registry
+
+    def contribute_to_class(self, cls, name):
+        if not cls._meta.abstract:
+            raise AssertionError(
+                '{} uses a PartitionForeignKey and must therefore '
+                'be declared abstract'.format(cls))
+        self.cls = cls
+        self.name = name
+        self.registry.register_foreign_key(self)
 
 
 def create_model(name, bases=None, attrs={}, module_path='', meta_attrs={}):

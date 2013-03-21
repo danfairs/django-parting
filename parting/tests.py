@@ -85,6 +85,25 @@ class PartitionedModelTests(TestCase):
                 objects = PartitionManager()
 
 
+class PartitionForeignKeyTestCase(TestCase):
+
+    def test_must_be_abstract(self):
+        """ Any model featuring a Partition foreign key must itself be
+        abstract, otherwise the fk constraints won't work.
+        """
+        from parting import PartitionManager, PartitionForeignKey
+
+        class PartitionModel(models.Model):
+            objects = PartitionManager()
+
+            class Meta:
+                abstract = True
+
+        with self.assertRaises(AssertionError):
+            class ChildPartitionModel(models.Model):
+                parent = PartitionForeignKey(PartitionModel)
+
+
 class PartitionTests(TestCase):
 
     @mock.patch('testapp.models.TweetManager.current_partition_key')

@@ -35,3 +35,8 @@ class Star(models.Model):
 
     user = models.TextField()
     tweet = PartitionForeignKey(Tweet)
+
+    objects = PartitionManager()
+
+    class Meta:
+        abstract = True
