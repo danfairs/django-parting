@@ -111,6 +111,7 @@ class PartitionManager(object):
 
                 # Find any PartitionForeignKeys that point to our parent model,
                 # and generate partitions of those source models
+                pfks_to_remove = set()
                 for pfk in self.registry.foreign_keys_referencing(self.model):
                     if not hasattr(pfk.cls, '_partition_manager'):
                         raise AttributeError(
@@ -121,6 +122,16 @@ class PartitionManager(object):
 
                     # Replace the placeholder with a real foreign key
                     point(child, pfk.name, model, **pfk.kwargs)
+                    pfks_to_remove.add(pfk)
+
+                # Make sure that there are no pfks hanging around
+                for pkf in pfks_to_remove:
+                    for field in child._meta.fields:
+                        if field.name == pkf.name and isinstance(
+                                field,
+                                PartitionForeignKey):
+                            child._meta.fields.remove(field)
+                            break
 
             finally:
                 imp.release_lock()

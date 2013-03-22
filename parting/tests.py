@@ -209,6 +209,10 @@ class PartitionForeignKeyTests(TestCase):
         self.assertEqual(p, c._meta.get_field('parent_1').rel.to)
         self.assertEqual(p, c._meta.get_field('parent_2').rel.to)
 
+        # Check that there are no PartitionForeignKey instances hanging
+        # around in the child's _meta
+        for field in c._meta.fields:
+            self.failIf(isinstance(field, PartitionForeignKey))
 
 class PartitionTests(TestCase):
 
