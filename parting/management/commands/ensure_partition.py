@@ -1,5 +1,6 @@
 import importlib
 import logging
+from cStringIO import StringIO
 from django.core.management.commands import sqlall, syncdb
 from django.db import models
 from optparse import make_option
@@ -35,20 +36,23 @@ class Command(BaseCommand):
         if only_sqlall:
             # We've been asked just to dump the SQL
             sqlall_command = sqlall.Command()
+            self._setup_command(sqlall_command)
             app = models.get_app(model._meta.app_label)
-            sqlall_command.handle_app(
+            print(sqlall_command.handle_app(
                 app,
                 database=database
-            )
+            ))
         else:
             # Invoke syncdb directly. We don't use call_command, as South
             # provides its own implementation which we don't want to use.
             syncdb_command = syncdb.Command()
+            self._setup_command(syncdb_command)
             syncdb_command.handle_noargs(
                 database=database,
                 interactive=False,
                 load_initial_data=False,
-                show_traceback=True
+                show_traceback=True,
+                verbosity=1,
             )
 
     def get_partition_names(self, model):
@@ -95,3 +99,8 @@ class Command(BaseCommand):
         except AttributeError:
             raise CommandError('Unknown model {}'.format(model))
         return m
+
+    def _setup_command(self, c):
+        # Plumb some attributes normally set up by a base class directly onto
+        # the command
+        c.stdout = StringIO()
