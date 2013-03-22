@@ -68,13 +68,13 @@ class Command(BaseCommand):
         try:
             partition_names = [self.args[1]]
         except IndexError:
-            pass
+            partition_names = None
 
         if current_only:
             partition_names = [current()]
         elif next_only:
             partition_names = [next()]
-        else:
+        elif not partition_names:
             # No explicit partition names given, use current and next
             partition_names = [current(), next()]
 
