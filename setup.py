@@ -11,7 +11,6 @@ setup(
     description='Tools to help manage large database tables',
     install_requires=[
         'Django',
-        'South',
         'python-dateutil',
     ]
 )
