@@ -111,6 +111,7 @@ TEMPLATE_DIRS = (
 INSTALLED_APPS = (
     'parting',
     'testapp',
+    'dfk',
 )
 
 # A sample logging configuration. The only tangible logging

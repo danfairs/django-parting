@@ -12,5 +12,6 @@ setup(
     install_requires=[
         'Django',
         'python-dateutil',
+        'django-dfk',
     ]
 )
