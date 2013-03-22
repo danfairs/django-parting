@@ -235,7 +235,7 @@ class PartitionTests(TestCase):
         # and its FK should point to the Tweet partition
         star_partition = Star.objects.get_partition('foo')
         fk = star_partition._meta.get_field('tweet')
-        self.assertEqual(partition, fk.to)
+        self.assertEqual(partition, fk.rel.to)
 
     def test_get_missing_partition(self):
         """ Attempting to fetch a missing partition will just return None
@@ -285,13 +285,16 @@ class CommandTests(TestCase):
     def test_both_current_next(self):
         """ Check we can't specify both current and next """
         with self.assertRaises(CommandError):
-            self._run('testapp.Tweet', current_only=True, next_only=True)
+            self._run(
+                'testapp.models.Tweet',
+                current_only=True,
+                next_only=True)
 
     def test_ensure_names(self):
         """ Check that we can pass an explicit model and partition key,
         and the tables will appear
         """
-        self._run('testapp.Tweet', 'foo')
+        self._run('testapp.models.Tweet', 'foo')
         self.check_tables('testapp_tweet_foo', 'testapp_star_foo')
 
     @cleanup_models('testapp.models.Tweet_baz', 'testapp.models.Star_baz')
@@ -300,14 +303,14 @@ class CommandTests(TestCase):
         """ Check that we can pass --current and the current partition will
         be created """
         current_partition_key.return_value = 'baz'
-        self._run('testapp.Tweet', current_only=True)
+        self._run('testapp.models.Tweet', current_only=True)
         self._check_tables('testapp_tweet_baz', 'testapp_star_baz')
 
     @cleanup_models('testapp.models.Tweet_baz', 'testapp.models.Star_baz')
     @mock.patch('testapp.models.TweetManager.next_partition_key')
     def test_next_partition(self, next_partition_key):
         next_partition_key.return_value = 'baz'
-        self._run('testapp.Tweet', current_only=True)
+        self._run('testapp.models.Tweet', current_only=True)
         self._check_tables('testapp_tweet_baz', 'testapp_star_baz')
 
     @cleanup_models(
@@ -323,7 +326,7 @@ class CommandTests(TestCase):
         be created. """
         current_partition_key.return_value = 'foo'
         next_partition_key.return_value = 'baz'
-        self._run('testapp.Tweet')
+        self._run('testapp.models.Tweet')
         self._check_tables(
             'testapp_tweet_baz',
             'testapp_star_baz',
