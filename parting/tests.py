@@ -6,6 +6,10 @@ from django.db import models
 from django.test import TestCase
 
 
+def _raise(exc_info):
+    raise exc_info[0], exc_info[1], exc_info[2]
+
+
 def _cleanup(*models):
     """ Function to delete models from the AppCache and remove them from
     the models module in which they're defined.
@@ -64,10 +68,24 @@ def cleanup_models(*models):
     def outer(func):
         @functools.wraps(func)
         def wrapped(self, *args, **kw):
+            exc_info = None
             try:
-                func(self, *args, **kw)
+                try:
+                    func(self, *args, **kw)
+                except:
+                    exc_info = sys.exc_info()
             finally:
-                _cleanup(*models)
+                try:
+                    _cleanup(*models)
+                except:
+                    # OK, we got an error cleaning up. If the actual test
+                    # passed, then we're happy to raise this cleanup exception.
+                    # Otherwise, we raise the original exception - the
+                    # cleanup one might get fixed when the test itself is
+                    # fixed. Just allowing the cleanup exception to bubble
+                    # up masks the problem.
+                    cleanup_exc_info = sys.exc_info()
+                    _raise(exc_info) if exc_info else _raise(cleanup_exc_info)
         return wrapped
     return outer
 
@@ -85,7 +103,7 @@ class PartitionedModelTests(TestCase):
                 objects = PartitionManager()
 
 
-class PartitionForeignKeyTestCase(TestCase):
+class PartitionForeignKeyTests(TestCase):
 
     def test_must_be_abstract(self):
         """ Any model featuring a Partition foreign key must itself be
@@ -102,6 +120,93 @@ class PartitionForeignKeyTestCase(TestCase):
         with self.assertRaises(AssertionError):
             class ChildPartitionModel(models.Model):
                 parent = PartitionForeignKey(PartitionModel)
+
+    @cleanup_models(
+        'parting.tests.PartitionModel_foo',
+        'parting.tests.ChildPartitionModel_foo')
+    def test_child_partions_generated(self):
+        """ When a parent partition is generated, child partitions (as
+        determined) by PartitionForeignKey relationships) should also be
+        generated.
+        """
+        from parting import PartitionManager, PartitionForeignKey
+
+        class PartitionModel(models.Model):
+            objects = PartitionManager()
+
+            class Meta:
+                abstract = True
+
+        class ChildPartitionModel(models.Model):
+            parent = PartitionForeignKey(PartitionModel)
+            objects = PartitionManager()
+
+            class Meta:
+                abstract = True
+
+        # Generating the parent partition should cause a child partition
+        # to also be created, with the same key.
+        PartitionModel.objects.ensure_partition('foo')
+        child_partition = ChildPartitionModel.objects.get_partition('foo')
+        self.assertTrue(child_partition is not None)
+
+    def test_multiple_fks_bad(self):
+        """ If there are multiple PartitionForeignKeys, they must all point
+        to the same model. This keeps everything simpler """
+        from parting import PartitionManager, PartitionForeignKey
+
+        class ParentModel1(models.Model):
+            objects = PartitionManager()
+
+            class Meta:
+                abstract = True
+
+        class ParentModel2(models.Model):
+            objects = PartitionManager()
+
+            class Meta:
+                abstract = True
+
+        with self.assertRaises(AssertionError):
+            class ChildPartitionModel(models.Model):
+                parent_1 = PartitionForeignKey(ParentModel1)
+                parent_2 = PartitionForeignKey(ParentModel2)
+
+                class Meta:
+                    abstract = True
+
+    @cleanup_models(
+        'parting.tests.ParentModel_foo',
+        'parting.tests.ChildPartitionModel_foo')
+    def test_multiple_fks_good(self):
+        """ If there are multiple PartitionForeignKeys, they must all point
+        to the same model. This keeps everything simpler """
+        from parting import PartitionManager, PartitionForeignKey
+
+        class ParentModel(models.Model):
+            objects = PartitionManager()
+
+            class Meta:
+                abstract = True
+
+        class ChildPartitionModel(models.Model):
+            parent_1 = PartitionForeignKey(
+                ParentModel,
+                related_name='parent_1_set')
+            parent_2 = PartitionForeignKey(
+                ParentModel,
+                related_name='parent_2_set')
+
+            objects = PartitionManager()
+
+            class Meta:
+                abstract = True
+
+        p = ParentModel.objects.ensure_partition('foo')
+        c = ChildPartitionModel.objects.get_partition('foo')
+
+        self.assertEqual(p, c._meta.get_field('parent_1').rel.to)
+        self.assertEqual(p, c._meta.get_field('parent_2').rel.to)
 
 
 class PartitionTests(TestCase):
@@ -130,6 +235,30 @@ class PartitionTests(TestCase):
         self.assertEqual('Tweet_foo', model.__name__)
         self.assertTrue(issubclass(model, models.Model))
 
+    @cleanup_models('testapp.models.Tweet_foo')
+    def test_get_partition(self):
+        """ Check that once a partition is generated, we can fetch it
+        with get_partition
+        """
+        from testapp.models import Star, Tweet
+        expected_partition = Tweet.objects.ensure_partition('foo')
+        assert expected_partition
+        partition = Tweet.objects.get_partition('foo')
+        self.assertEqual(expected_partition, partition)
+
+        # We should also now be able to get the 'foo' partition for Star,
+        # and its FK should point to the Tweet partition
+        star_partition = Star.objects.get_partition('foo')
+        fk = star_partition._meta.get_field('tweet')
+        self.assertEqual(partition, fk.to)
+
+    def test_get_missing_partition(self):
+        """ Attempting to fetch a missing partition will just return None
+        (mirroring the behaviour of Django's get_model)
+        """
+        from testapp.models import Tweet
+        self.assertEqual(None, Tweet.objects.get_partition('foo'))
+
     def test_no_overwrite(self):
         """ Check that we don't overwrite
         """
@@ -141,3 +270,11 @@ class PartitionTests(TestCase):
                 Tweet.objects.ensure_partition('foo')
         finally:
             delattr(testapp.models, 'Tweet_foo')
+
+
+class CommandTests(TestCase):
+
+    def run(self, *args, **kwargs):
+        from parting.management.commands import ensure_partition
+        command = ensure_partition.Command()
+        command.handle(*args, **kwargs)
