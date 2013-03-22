@@ -306,14 +306,14 @@ class CommandTests(TestCase):
         be created """
         current_partition_key.return_value = 'baz'
         self._run('testapp.models.Tweet', current_only=True)
-        self._check_tables('testapp_tweet_baz', 'testapp_star_baz')
+        self.check_tables('testapp_tweet_baz', 'testapp_star_baz')
 
     @cleanup_models('testapp.models.Tweet_baz', 'testapp.models.Star_baz')
     @mock.patch('testapp.models.TweetManager.next_partition_key')
     def test_next_partition(self, next_partition_key):
         next_partition_key.return_value = 'baz'
         self._run('testapp.models.Tweet', current_only=True)
-        self._check_tables('testapp_tweet_baz', 'testapp_star_baz')
+        self.check_tables('testapp_tweet_baz', 'testapp_star_baz')
 
     @cleanup_models(
         'testapp.models.Tweet_baz',
@@ -329,7 +329,7 @@ class CommandTests(TestCase):
         current_partition_key.return_value = 'foo'
         next_partition_key.return_value = 'baz'
         self._run('testapp.models.Tweet')
-        self._check_tables(
+        self.check_tables(
             'testapp_tweet_baz',
             'testapp_star_baz',
             'testapp_tweet_foo',
