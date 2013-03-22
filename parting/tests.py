@@ -87,6 +87,9 @@ def cleanup_models(*models):
                     # up masks the problem.
                     cleanup_exc_info = sys.exc_info()
                     _raise(exc_info) if exc_info else _raise(cleanup_exc_info)
+                else:
+                    if exc_info:
+                        _raise(exc_info)
         return wrapped
     return outer
 
