@@ -4,7 +4,7 @@ import mock
 import sys
 from django.core.management.base import CommandError
 from django.db import models
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 
 
 def _raise(exc_info):
@@ -259,7 +259,12 @@ class PartitionTests(TestCase):
             delattr(testapp.models, 'Tweet_foo')
 
 
-class CommandTests(TestCase):
+class CommandTests(TransactionTestCase):
+
+    def setUp(self):
+        from django.db import connection
+        tables = set(connection.introspection.table_names())
+        self.failIf(tables)
 
     def _run(self, *args, **kwargs):
         from parting.management.commands import ensure_partition
@@ -267,7 +272,8 @@ class CommandTests(TestCase):
         command.handle(*args, **kwargs)
 
     def check_tables(self, *names):
-        """ Check the named tables exist in the database
+        """ Check the named tables exist in the database, and clean them
+        up if they do
         """
         from django.db import connection
         names = set(names)
@@ -277,6 +283,14 @@ class CommandTests(TestCase):
             self.fail(
                 'The following tables are missing: {}'.format(
                     ', '.join(t for t in missing_tables)))
+
+        # Yay hack!
+        cursor = connection.cursor()
+        for name in tables:
+            cursor.execute(
+                'DROP TABLE {}'.format(
+                    connection.ops.quote_name(name)
+                ))
 
     def test_missing_model(self):
         """ The command requires at least 1 argument, a model
@@ -312,7 +326,7 @@ class CommandTests(TestCase):
     @mock.patch('testapp.models.TweetManager.next_partition_key')
     def test_next_partition(self, next_partition_key):
         next_partition_key.return_value = 'baz'
-        self._run('testapp.models.Tweet', current_only=True)
+        self._run('testapp.models.Tweet', next_only=True)
         self.check_tables('testapp_tweet_baz', 'testapp_star_baz')
 
     @cleanup_models(
