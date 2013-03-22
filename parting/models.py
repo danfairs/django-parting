@@ -126,12 +126,13 @@ class PartitionManager(object):
 
                 # Make sure that there are no pfks hanging around
                 for pkf in pfks_to_remove:
-                    for field in child._meta.fields:
-                        if field.name == pkf.name and isinstance(
-                                field,
-                                PartitionForeignKey):
-                            child._meta.fields.remove(field)
-                            break
+                    for lst in (child._meta.fields, child._meta.local_fields):
+                        for field in lst:
+                            if field.name == pkf.name and isinstance(
+                                    field,
+                                    PartitionForeignKey):
+                                lst.remove(field)
+                                break
 
             finally:
                 imp.release_lock()

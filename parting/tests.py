@@ -216,6 +216,8 @@ class PartitionForeignKeyTests(TestCase):
         # around in the child's _meta
         for field in c._meta.fields:
             self.failIf(isinstance(field, PartitionForeignKey))
+        for field in c._meta.local_fields:
+            self.failIf(isinstance(field, PartitionForeignKey))
 
 
 class PartitionTests(TestCase):
