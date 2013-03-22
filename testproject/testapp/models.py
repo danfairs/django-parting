@@ -1,11 +1,11 @@
 from django.db import models
 from django.utils import timezone
 from parting import PartitionForeignKey, PartitionManager
-from dateutil import relativedelta
+from dateutil.relativedelta import relativedelta
 
 
 def _key_from_dt(dt):
-    return dt.strftime('_%Y_%m')
+    return dt.strftime('%Y_%m')
 
 
 class TweetManager(PartitionManager):

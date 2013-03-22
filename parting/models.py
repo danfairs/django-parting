@@ -67,18 +67,6 @@ class PartitionManager(object):
         raise NotImplementedError()
 
     # Utility methods
-    def ensure_current_partition(self):
-        """ Make sure the current partition's model exists. Note that this
-        does not actually create any tables. Returns the model for the
-        partition.
-        """
-        return self.ensure_partition(self.current_partition_key())
-
-    def ensure_next_partition(self):
-        """ Make sure the next partition exists
-        """
-        return self.ensure_partition(self.next_partition_key())
-
     def get_partition(self, partition_key):
         # Try to grab the required model
         app_label = self.model._meta.app_label

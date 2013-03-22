@@ -2,6 +2,7 @@ import functools
 import imp
 import mock
 import sys
+from django.core.management.base import CommandError
 from django.db import models
 from django.test import TestCase
 
@@ -212,7 +213,7 @@ class PartitionForeignKeyTests(TestCase):
 class PartitionTests(TestCase):
 
     @mock.patch('testapp.models.TweetManager.current_partition_key')
-    @cleanup_models('testapp.models.Tweet_foo')
+    @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
     def test_current_partition(self, current_partition_key):
         """ Check that we can create the current partition model
         """
@@ -224,7 +225,7 @@ class PartitionTests(TestCase):
         self.assertTrue(issubclass(model, models.Model))
 
     @mock.patch('testapp.models.TweetManager.next_partition_key')
-    @cleanup_models('testapp.models.Tweet_foo')
+    @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
     def test_next_partition(self, next_partition_key):
         """ Check that we can create the next partition model
         """
@@ -235,7 +236,7 @@ class PartitionTests(TestCase):
         self.assertEqual('Tweet_foo', model.__name__)
         self.assertTrue(issubclass(model, models.Model))
 
-    @cleanup_models('testapp.models.Tweet_foo')
+    @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
     def test_get_partition(self):
         """ Check that once a partition is generated, we can fetch it
         with get_partition
@@ -274,7 +275,79 @@ class PartitionTests(TestCase):
 
 class CommandTests(TestCase):
 
-    def run(self, *args, **kwargs):
+    def _run(self, *args, **kwargs):
         from parting.management.commands import ensure_partition
         command = ensure_partition.Command()
         command.handle(*args, **kwargs)
+
+    def check_tables(self, *names):
+        """ Check the named tables exist in the database
+        """
+        from django.db import connection
+        names = set(names)
+        tables = set(connection.introspection.table_names())
+        missing_tables = names - tables
+        if missing_tables:
+            self.fail(
+                'The following tables are missing: {}'.format(
+                    ', '.join(t for t in missing_tables)))
+
+    def test_missing_model(self):
+        """ The command requires at least 1 argument, a model
+        """
+        with self.assertRaises(CommandError):
+            self._run()
+
+    def test_both_current_next(self):
+        """ Check we can't specify both current and next """
+        with self.assertRaises(CommandError):
+            self._run('testapp.Tweet', current_only=True, next_only=True)
+
+    def test_ensure_names(self):
+        """ Check that we can pass an explicit model and partition key,
+        and the tables will appear
+        """
+        self._run('testapp.Tweet', 'foo')
+        self.check_tables('testapp_tweet_foo', 'testapp_star_foo')
+
+    @cleanup_models('testapp.models.Tweet_baz', 'testapp.models.Star_baz')
+    @mock.patch('testapp.models.TweetManager.current_partition_key')
+    def test_current_partition(self, current_partition_key):
+        """ Check that we can pass --current and the current partition will
+        be created """
+        current_partition_key.return_value = 'baz'
+        self._run('testapp.Tweet', current_only=True)
+        self._check_tables('testapp_tweet_baz', 'testapp_star_baz')
+
+    @cleanup_models('testapp.models.Tweet_baz', 'testapp.models.Star_baz')
+    @mock.patch('testapp.models.TweetManager.next_partition_key')
+    def test_next_partition(self, next_partition_key):
+        next_partition_key.return_value = 'baz'
+        self._run('testapp.Tweet', current_only=True)
+        self._check_tables('testapp_tweet_baz', 'testapp_star_baz')
+
+    @cleanup_models(
+        'testapp.models.Tweet_baz',
+        'testapp.models.Star_baz',
+        'testapp.models.Tweet_foo',
+        'testapp.models.Star_foo',
+    )
+    @mock.patch('testapp.models.TweetManager.current_partition_key')
+    @mock.patch('testapp.models.TweetManager.next_partition_key')
+    def test_no_switches(self, next_partition_key, current_partition_key):
+        """ If we pass no switches, then the current and next partitions will
+        be created. """
+        current_partition_key.return_value = 'foo'
+        next_partition_key.return_value = 'baz'
+        self._run('testapp.Tweet')
+        self._check_tables(
+            'testapp_tweet_baz',
+            'testapp_star_baz',
+            'testapp_tweet_foo',
+            'testapp_star_foo',
+        )
+
+    def test_bad_model(self):
+        """ Check that a non-existant model causes a CommandError """
+        with self.assertRaises(CommandError):
+            self._run('doesnotexist')
