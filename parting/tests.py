@@ -217,31 +217,8 @@ class PartitionForeignKeyTests(TestCase):
         for field in c._meta.fields:
             self.failIf(isinstance(field, PartitionForeignKey))
 
+
 class PartitionTests(TestCase):
-
-    @mock.patch('testapp.models.TweetManager.current_partition_key')
-    @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
-    def test_current_partition(self, current_partition_key):
-        """ Check that we can create the current partition model
-        """
-        from testapp.models import Tweet
-        current_partition_key.return_value = u'foo'
-
-        model = Tweet.objects.ensure_current_partition()
-        self.assertEqual('Tweet_foo', model.__name__)
-        self.assertTrue(issubclass(model, models.Model))
-
-    @mock.patch('testapp.models.TweetManager.next_partition_key')
-    @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
-    def test_next_partition(self, next_partition_key):
-        """ Check that we can create the next partition model
-        """
-        from testapp.models import Tweet
-        next_partition_key.return_value = u'foo'
-
-        model = Tweet.objects.ensure_next_partition()
-        self.assertEqual('Tweet_foo', model.__name__)
-        self.assertTrue(issubclass(model, models.Model))
 
     @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
     def test_get_partition(self):
