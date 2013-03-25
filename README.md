@@ -181,3 +181,32 @@ For example:
 
 Likewise, you need to make sure that you know which partition you need to look
 in to find your data.
+
+
+Custom Managers
+===============
+
+Often, you will want your generated partition models to have custom managers.
+This is supported by adding a `get_managers()` method to your partition
+manager subclass, for example:
+
+    class CustomManager(models.Manager):
+        def my_custom_method(self):
+            return u'hi!'
+
+
+    class TweetPartitionManager(PartitionManager):
+
+        def current_partition_key(self):
+            return _key_from_dt(timezone.now())
+
+        def next_partition_key(self):
+            return _key_from_dt(timezone.now() + relativedelta(months=+1))
+
+        def get_managers(self, partition):
+            return [
+                ('objects', CustomManager()),
+            ]
+
+ Now, whenever a Tweet partition is generated, the `objects` attribute will
+ be an instance of `CustomManager`.
