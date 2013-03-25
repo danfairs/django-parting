@@ -12,10 +12,6 @@ Partitioned Models
 django-parting helps manage partitioned models. Partitioned models are those
 whose data is stored in several underlying tables.
 
-django-parting supports grouping partitioned models together into a
-partition family. A partition family is a set of related models, which may
-have foreign keys between themselves, and whose data is all logically related.
-
 For example, consider the following two models:
 
     from django.utils import timezone
@@ -26,44 +22,48 @@ For example, consider the following two models:
         created_at = models.DateTimeField(default=timezone.now)
 
 
-    class Retweet(models.Model):
-        retweet = models.ForeignKey(Tweet)
-        retweeted = models.ForeignKey(Tweet)
+    class Star(models.Model):
+        tweet = models.ForeignKey(Tweet)
+        user = models.TextField()
 
-
-A Retweet instance relates two tweets: the retweeting tweet, and the retweeted
+A Star instance relates an original tweet with a user, who has 'starred' that
 tweet.
 
 There are lots of Tweets in the world. Too many to store in a single database
 table. We're therefore going to partition this so we end up with a table
 per month.
 
-However, it's not quite as simple as is might be - the Retweet model has
+However, it's not quite as simple as is might be - the Star model has
 a foreign key relationship with the Tweet table. If we split up the table
 in which tweets are stored, that prevents us having those relationships.
 
-To make those relationships work, we have to also partition the Retweet table
-in the same way - and we need to make sure the Retweet records go into the
+To make those relationships work, we have to also partition the Star table
+in the same way - and we need to make sure the Star records go into the
 correct partition with the relationships to the correct parent Tweet table.
+
+We'd also like to use django-parting's ability to ensure partitions are created
+automatically.
 
 We do that using a PartitionForeignKey.
 
     from django.utils import timezone
     from parting import PartitionManager
+    from dateutil.relativedelta import relativedelta
 
     def _key_for_date(dt):
         return dt.strftime('%Y%m')
 
     class TweetPartitionManager(PartitionManager):
 
-        def partition_key(self, tweet):
-            return _key_for_date(tweet.created_at)
-
         def current_partition(self):
+            """ Provide the key for the 'current' partition
+            """
             return _key_for_date(timezone.now())
 
         def next_partition(self):
-            one_months_time = timezone.now() + datetime.timedelta(months=1)
+            """ Provide the key for the 'next' partition
+            """
+            one_months_time = timezone.now() + relativedelta(months=+1)
             return _key_for_date(one_months_time)
 
 
@@ -74,10 +74,84 @@ We do that using a PartitionForeignKey.
 
         objects = TweetPartitionManager()
 
-
-    class Retweet(models.Model):
-        retweet = models.ForeignKey(Tweet)
-        retweeted = models.ForeignKey(Tweet)
+        class Meta:
+            abstract = True
 
 
+    class Star(models.Model):
+        tweet = models.PartitionForeignKey(Tweet)
+        user = models.TextField()
 
+        objects = TweetPartitionManager()
+
+        class Meta:
+            abstract = True
+
+Note both models are abstract. This is because we don't store data in them
+directly, but in partitions based on those models. They also both have a
+TweetPartitionManager instance. (Note that this isn't a real Django manager,
+but it makes the API feel more Django-like)
+
+Now, if you run a syncdb, nothing will happen. A management command
+is provided which, by default, will create the current and next partitions
+for a named model, assuming they don't exist:
+
+    $ python manage.py ensure_partition myapp.models.Tweet
+
+That will call `current_partition()` and `next_partition()` defined on the
+Tweet's PartitionManager instance, and use the result as part of the generated
+model and table name.
+
+If you want to see what would be generated, you can pass `--sqlall` as a
+switch:
+
+    $ python manage.py ensure_partition myapp.models.Tweet --sqlall
+    CREATE TABLE "testapp_tweet_2013_03" (
+        "id" integer NOT NULL PRIMARY KEY,
+        "json" text NOT NULL,
+        "created" datetime NOT NULL
+    )
+    ;
+    CREATE TABLE "testapp_star_2013_03" (
+        "id" integer NOT NULL PRIMARY KEY,
+        "tweet_id" integer NOT NULL REFERENCES "testapp_tweet_2013_03" ("id"),
+        "user" text NOT NULL
+    )
+    ;
+    CREATE TABLE "testapp_tweet_2013_04" (
+        "id" integer NOT NULL PRIMARY KEY,
+        "json" text NOT NULL,
+        "created" datetime NOT NULL
+    )
+    ;
+    CREATE TABLE "testapp_star_2013_04" (
+        "id" integer NOT NULL PRIMARY KEY,
+        "tweet_id" integer NOT NULL REFERENCES "testapp_tweet_2013_04" ("id"),
+        "user" text NOT NULL
+    )
+    ;
+    CREATE INDEX "testapp_star_2013_03_36542d72" ON "testapp_star_2013_03" ("tweet_id");
+    CREATE INDEX "testapp_star_2013_04_36542d72" ON "testapp_star_2013_04" ("tweet_id");
+
+If you're not using time-based partitioning (ie. there's no real meaning to
+'current' and 'next') then you can just ask it to create a specific, named
+partition that makes sense to your application:
+
+    $ python manage.py ensure_partition testapp.models.Tweet baz --sqlall
+    CREATE TABLE "testapp_tweet_baz" (
+        "id" integer NOT NULL PRIMARY KEY,
+        "json" text NOT NULL,
+        "created" datetime NOT NULL
+    )
+    ;
+    CREATE TABLE "testapp_star_baz" (
+        "id" integer NOT NULL PRIMARY KEY,
+        "tweet_id" integer NOT NULL REFERENCES "testapp_tweet_baz" ("id"),
+        "user" text NOT NULL
+    )
+    ;
+    CREATE INDEX "testapp_star_baz_36542d72" ON "testapp_star_baz" ("tweet_id");
+
+So - we have our partitions, how do we actually use them? Well, django-parting
+helps less here. It simply provides an API to fetch a model representing a
+partition for a given partition key.
