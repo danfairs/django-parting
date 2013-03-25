@@ -10,9 +10,6 @@ def _key_from_dt(dt):
 
 class TweetManager(PartitionManager):
 
-    def partition_key_for(self, tweet):
-        return _key_from_dt(tweet.created)
-
     def current_partition_key(self):
         return _key_from_dt(timezone.now())
 

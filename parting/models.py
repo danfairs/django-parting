@@ -38,21 +38,11 @@ _registry = PartitionRegistry()
 class PartitionManager(object):
     """
     Manager to provide helpers for partitions. Note that this isn't actually
-    a real manager, it just provides a manager-like API.
+    a real manager, it just aims to 'feel' like one.
     """
 
     def __init__(self, partition_registry=_registry):
         self.registry = partition_registry
-
-    # Methods that subclasses should override
-    def partition_key_for(self, ob):
-        """ Return the partition key for the given object. The partition key
-        controls which partition the object should live in. This should remain
-        the same for the object's life - if something happens to change an
-        instance's partition key, then the instance should be deleted from its
-        old partition before being resaved. This will not happen automatically.
-        """
-        raise NotImplementedError()
 
     def current_partition_key(self):
         """ Return the partition key for 'now'. No need to implement this if
