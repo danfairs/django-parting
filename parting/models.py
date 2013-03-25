@@ -1,7 +1,7 @@
 import imp
 import logging
 import sys
-from django.db.models import get_model
+from django.db.models import Manager, get_model
 from django.db.models.fields.related import ManyToOneRel
 from dfk import DeferredForeignKey, point
 
@@ -56,6 +56,17 @@ class PartitionManager(object):
         """
         raise NotImplementedError()
 
+    def get_managers(self, partition):
+        """ Return an iterable of tuples of name, manager pairs, which will be
+        added to all partitions in the given order. Order is important, as
+        Django regards the first manager as the default manager.
+
+        Defaults to a standard models.Manager() instance called 'objects'
+        """
+        return [
+            ('objects', Manager())
+        ]
+
     # Utility methods
     def get_partition(self, partition_key):
         # Try to grab the required model
@@ -84,6 +95,9 @@ class PartitionManager(object):
                     bases=(self.model,),
                     attrs={'_is_partition': True},
                     module_path=self.model.__module__)
+
+                for name, manager in self.get_managers(model):
+                    manager.contribute_to_class(model, name)
 
                 # Make sure that we don't overwrite an existing name in the
                 # module. Raise an AttributeError if we look like we're about

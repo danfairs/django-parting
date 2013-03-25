@@ -239,6 +239,9 @@ class PartitionTests(TestCase):
         fk = star_partition._meta.get_field('tweet')
         self.assertEqual(partition, fk.rel.to)
 
+        # We should also find that our custom manager is in place
+        self.assertTrue(hasattr(partition.objects, 'my_custom_method'))
+
     def test_get_missing_partition(self):
         """ Attempting to fetch a missing partition will just return None
         (mirroring the behaviour of Django's get_model)

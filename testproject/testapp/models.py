@@ -8,7 +8,12 @@ def _key_from_dt(dt):
     return dt.strftime('%Y_%m')
 
 
-class TweetManager(PartitionManager):
+class CustomManager(models.Manager):
+    def my_custom_method(self):
+        return u'hi!'
+
+
+class TweetPartitionManager(PartitionManager):
 
     def current_partition_key(self):
         return _key_from_dt(timezone.now())
