@@ -249,17 +249,15 @@ class PartitionTests(TestCase):
         from testapp.models import Tweet
         self.assertEqual(None, Tweet.partitions.get_partition('foo'))
 
+    @cleanup_models('testapp.models.Tweet_foo')
     def test_no_overwrite(self):
         """ Check that we don't overwrite
         """
         from testapp.models import Tweet
         import testapp.models
         testapp.models.Tweet_foo = object()
-        try:
-            with self.assertRaises(AttributeError):
-                Tweet.partitions.ensure_partition('foo')
-        finally:
-            delattr(testapp.models, 'Tweet_foo')
+        with self.assertRaises(AttributeError):
+            Tweet.partitions.ensure_partition('foo')
 
 
 class CommandTests(TransactionTestCase):
