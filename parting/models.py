@@ -173,6 +173,7 @@ class PartitionForeignKey(DeferredForeignKey):
     # by a proper foreign key anyway.
     rel = None
     primary_key = None
+    creation_counter = 0
 
     def __init__(self, to, to_field=None, rel_class=ManyToOneRel,
                  partition_registry=_registry, **kwargs):
