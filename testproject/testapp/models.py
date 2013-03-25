@@ -16,13 +16,18 @@ class TweetManager(PartitionManager):
     def next_partition_key(self):
         return _key_from_dt(timezone.now() + relativedelta(months=+1))
 
+    def get_managers(self, partition):
+        return [
+            ('objects', CustomManager()),
+        ]
+
 
 class Tweet(models.Model):
 
     json = models.TextField()
     created = models.DateTimeField(default=timezone.now)
 
-    objects = TweetManager()
+    partitions = TweetPartitionManager()
 
     class Meta:
         abstract = True
@@ -33,7 +38,7 @@ class Star(models.Model):
     user = models.TextField()
     tweet = PartitionForeignKey(Tweet)
 
-    objects = PartitionManager()
+    partitions = PartitionManager()
 
     class Meta:
         abstract = True

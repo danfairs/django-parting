@@ -72,7 +72,7 @@ We do that using a PartitionForeignKey.
         user = models.TextField()
         created_at = models.DateTimeField(default=timezone.now)
 
-        objects = TweetPartitionManager()
+        partitions = TweetPartitionManager()
 
         class Meta:
             abstract = True
@@ -82,7 +82,7 @@ We do that using a PartitionForeignKey.
         tweet = models.PartitionForeignKey(Tweet)
         user = models.TextField()
 
-        objects = TweetPartitionManager()
+        partitions = TweetPartitionManager()
 
         class Meta:
             abstract = True
@@ -175,7 +175,7 @@ For example:
         'user': 'Jimmy'
     }
     partition_key = _key_for_dt(tweet_data['created_at'])
-    partition = Tweet.objects.get_partition(partition_key)
+    partition = Tweet.partitions.get_partition(partition_key)
     tweet = partition(**tweet_data)
     tweet.save()
 

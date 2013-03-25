@@ -228,14 +228,14 @@ class PartitionTests(TestCase):
         with get_partition
         """
         from testapp.models import Star, Tweet
-        expected_partition = Tweet.objects.ensure_partition('foo')
+        expected_partition = Tweet.partitions.ensure_partition('foo')
         assert expected_partition
-        partition = Tweet.objects.get_partition('foo')
+        partition = Tweet.partitions.get_partition('foo')
         self.assertEqual(expected_partition, partition)
 
         # We should also now be able to get the 'foo' partition for Star,
         # and its FK should point to the Tweet partition
-        star_partition = Star.objects.get_partition('foo')
+        star_partition = Star.partitions.get_partition('foo')
         fk = star_partition._meta.get_field('tweet')
         self.assertEqual(partition, fk.rel.to)
 
@@ -244,7 +244,7 @@ class PartitionTests(TestCase):
         (mirroring the behaviour of Django's get_model)
         """
         from testapp.models import Tweet
-        self.assertEqual(None, Tweet.objects.get_partition('foo'))
+        self.assertEqual(None, Tweet.partitions.get_partition('foo'))
 
     def test_no_overwrite(self):
         """ Check that we don't overwrite
@@ -254,7 +254,7 @@ class PartitionTests(TestCase):
         testapp.models.Tweet_foo = object()
         try:
             with self.assertRaises(AttributeError):
-                Tweet.objects.ensure_partition('foo')
+                Tweet.partitions.ensure_partition('foo')
         finally:
             delattr(testapp.models, 'Tweet_foo')
 
@@ -314,7 +314,7 @@ class CommandTests(TransactionTestCase):
         self.check_tables('testapp_tweet_foo', 'testapp_star_foo')
 
     @cleanup_models('testapp.models.Tweet_baz', 'testapp.models.Star_baz')
-    @mock.patch('testapp.models.TweetManager.current_partition_key')
+    @mock.patch('testapp.models.TweetPartitionManager.current_partition_key')
     def test_current_partition(self, current_partition_key):
         """ Check that we can pass --current and the current partition will
         be created """
@@ -323,7 +323,7 @@ class CommandTests(TransactionTestCase):
         self.check_tables('testapp_tweet_baz', 'testapp_star_baz')
 
     @cleanup_models('testapp.models.Tweet_baz', 'testapp.models.Star_baz')
-    @mock.patch('testapp.models.TweetManager.next_partition_key')
+    @mock.patch('testapp.models.TweetPartitionManager.next_partition_key')
     def test_next_partition(self, next_partition_key):
         next_partition_key.return_value = 'baz'
         self._run('testapp.models.Tweet', next_only=True)
@@ -335,8 +335,8 @@ class CommandTests(TransactionTestCase):
         'testapp.models.Tweet_foo',
         'testapp.models.Star_foo',
     )
-    @mock.patch('testapp.models.TweetManager.current_partition_key')
-    @mock.patch('testapp.models.TweetManager.next_partition_key')
+    @mock.patch('testapp.models.TweetPartitionManager.current_partition_key')
+    @mock.patch('testapp.models.TweetPartitionManager.next_partition_key')
     def test_no_switches(self, next_partition_key, current_partition_key):
         """ If we pass no switches, then the current and next partitions will
         be created. """
