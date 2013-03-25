@@ -52,7 +52,7 @@ class Command(BaseCommand):
                 interactive=False,
                 load_initial_data=False,
                 show_traceback=True,
-                verbosity=1,
+                verbosity=0,
             )
 
     def get_partition_names(self, model):
