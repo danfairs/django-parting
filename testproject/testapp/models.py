@@ -1,6 +1,10 @@
 from django.db import models
 from django.utils import timezone
-from parting import PartitionForeignKey, PartitionManager
+try:
+    from parting import PartitionForeignKey, PartitionManager
+except ImportError:
+    print('Hoo!')
+    raise
 from dateutil.relativedelta import relativedelta
 
 
