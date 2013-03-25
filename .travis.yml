@@ -13,3 +13,7 @@ install:
 # command to run tests
 script:
     - python testproject/manage.py test --settings=testproject.settings parting
+notifications:
+  email:
+    - dan@fezconsulting.com
+
