@@ -133,6 +133,10 @@ switch:
     CREATE INDEX "testapp_star_2013_03_36542d72" ON "testapp_star_2013_03" ("tweet_id");
     CREATE INDEX "testapp_star_2013_04_36542d72" ON "testapp_star_2013_04" ("tweet_id");
 
+Note that the foreign key on the dependent `testapp_star_2013_03` and
+`testapp_star_2013_04` tables point to the appropriate parent table for that
+partition.
+
 If you're not using time-based partitioning (ie. there's no real meaning to
 'current' and 'next') then you can just ask it to create a specific, named
 partition that makes sense to your application:
@@ -154,4 +158,26 @@ partition that makes sense to your application:
 
 So - we have our partitions, how do we actually use them? Well, django-parting
 helps less here. It simply provides an API to fetch a model representing a
-partition for a given partition key.
+partition for a given partition key. That model is a standard Django model,
+and will be tied to the underlying table that represents the partition.
+
+Hence, it's up to your application to determine the correct partition (and
+hence model) for some data.
+
+For example:
+
+    import json
+    from django.utils.timezone import make_aware, utc
+
+    tweet_data = {
+        'created_at': make_aware(datetime.datetime(2012, 12, 6, 14, 23), utc)
+        'json': json.dumps({'key': 'value'}),
+        'user': 'Jimmy'
+    }
+    partition_key = _key_for_dt(tweet_data['created_at'])
+    partition = Tweet.objects.get_partition(partition_key)
+    tweet = partition(**tweet_data)
+    tweet.save()
+
+Likewise, you need to make sure that you know which partition you need to look
+in to find your data.
