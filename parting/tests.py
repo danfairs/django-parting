@@ -266,12 +266,12 @@ class PartitionTests(TestCase):
         a number of related models were generated using the same key.
         """
         from testapp.models import Star, Tweet
-        from parting.models import partition_key
+        from parting.models import get_partition_key
         tweet_partition = Tweet.partitions.ensure_partition('foo')
         star_partition = Star.partitions.get_partition('foo')
 
-        self.assertEqual('foo', partition_key(tweet_partition))
-        self.assertEqual('foo', partition_key(star_partition))
+        self.assertEqual('foo', get_partition_key(tweet_partition))
+        self.assertEqual('foo', get_partition_key(star_partition))
 
 
 class CommandTests(TransactionTestCase):

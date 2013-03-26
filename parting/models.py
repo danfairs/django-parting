@@ -11,7 +11,7 @@ logger = logging.getLogger(__file__)
 _marker = object()
 
 
-def partition_key(cls, default=_marker):
+def get_partition_key(cls, default=_marker):
     if default is not _marker:
         return getattr(cls, PARTITION_KEY, default)
     else:
@@ -193,7 +193,7 @@ class PartitionForeignKey(DeferredForeignKey):
         # be replaced. (It might be nice to figure out a way to do that here,
         # but we'd need to know which partition on of 'to' we should point
         # to.)
-        if not cls._meta.abstract and not partition_key(cls, None):
+        if not cls._meta.abstract and not get_partition_key(cls, None):
             raise AssertionError(
                 '{} uses a PartitionForeignKey and must therefore '
                 'be declared abstract'.format(cls))
