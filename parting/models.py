@@ -124,9 +124,11 @@ class PartitionManager(object):
                     child = pfk.cls._partition_manager.ensure_partition(
                         partition_key)
 
-                    # Replace the placeholder with a real foreign key
+                    # Replace the placeholder with a real foreign key, and
+                    # make sure internal caches are populated correctly
                     point(child, pfk.name, model, **pfk.kwargs)
                     pfks_to_remove.add(pfk)
+                    self._fill_fields_cache(child._meta)
 
                 # Make sure that there are no pfks hanging around
                 for pkf in pfks_to_remove:
@@ -137,9 +139,9 @@ class PartitionManager(object):
                                     PartitionForeignKey):
                                 lst.remove(field)
                                 break
-
             finally:
                 imp.release_lock()
+
         return model
 
     # Django integration API
@@ -161,6 +163,27 @@ class PartitionManager(object):
         return '{}_{}'.format(
             self.model._meta.object_name,
             partition_key)
+
+    def _fill_fields_cache(self, model_meta):
+        """ Populate the field cache attributes on model_meta using our own
+        rules, skipping partition foreign keys.
+        """
+        cache = []
+        for parent in model_meta.parents:
+            for field, model in parent._meta.get_fields_with_model():
+                if isinstance(field, PartitionForeignKey):
+                    continue
+                if model:
+                    cache.append((field, model))
+                else:
+                    cache.append((field, parent))
+        cache.extend([
+            (f, None) for f
+            in model_meta.local_fields
+            if not isinstance(f, PartitionForeignKey)
+        ])
+        model_meta._field_cache = tuple(cache)
+        model_meta._field_name_cache = [x for x, _ in cache]
 
 
 class PartitionForeignKey(DeferredForeignKey):

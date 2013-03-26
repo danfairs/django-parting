@@ -218,6 +218,8 @@ class PartitionForeignKeyTests(TestCase):
             self.failIf(isinstance(field, PartitionForeignKey))
         for field in c._meta.local_fields:
             self.failIf(isinstance(field, PartitionForeignKey))
+        for field, model in c._meta.get_fields_with_model():
+            self.failIf(isinstance(field, PartitionForeignKey))
 
 
 class PartitionTests(TestCase):
