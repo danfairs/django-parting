@@ -150,7 +150,7 @@ class PartitionForeignKeyTests(TestCase):
 
         # Generating the parent partition should cause a child partition
         # to also be created, with the same key.
-        PartitionModel.objects.ensure_partition('foo')
+        PartitionModel.objects.get_partition('foo')
         child_partition = ChildPartitionModel.objects.get_partition('foo')
         self.assertTrue(child_partition is not None)
 
@@ -206,7 +206,7 @@ class PartitionForeignKeyTests(TestCase):
             class Meta:
                 abstract = True
 
-        p = ParentModel.objects.ensure_partition('foo')
+        p = ParentModel.objects.get_partition('foo')
         c = ChildPartitionModel.objects.get_partition('foo')
 
         self.assertEqual(p, c._meta.get_field('parent_1').rel.to)
@@ -230,7 +230,7 @@ class PartitionTests(TestCase):
         with get_partition
         """
         from testapp.models import Star, Tweet
-        expected_partition = Tweet.partitions.ensure_partition('foo')
+        expected_partition = Tweet.partitions.get_partition('foo')
         assert expected_partition
         partition = Tweet.partitions.get_partition('foo')
         self.assertEqual(expected_partition, partition)
@@ -246,10 +246,14 @@ class PartitionTests(TestCase):
 
     def test_get_missing_partition(self):
         """ Attempting to fetch a missing partition will just return None
-        (mirroring the behaviour of Django's get_model)
+        (mirroring the behaviour of Django's get_model), as long as we don't
+        auto-create
         """
         from testapp.models import Tweet
-        self.assertEqual(None, Tweet.partitions.get_partition('foo'))
+        self.assertEqual(
+            None,
+            Tweet.partitions.get_partition('foo', create=False)
+        )
 
     @cleanup_models('testapp.models.Tweet_foo')
     def test_no_overwrite(self):
@@ -259,7 +263,7 @@ class PartitionTests(TestCase):
         import testapp.models
         testapp.models.Tweet_foo = object()
         with self.assertRaises(AttributeError):
-            Tweet.partitions.ensure_partition('foo')
+            Tweet.partitions.get_partition('foo')
 
     @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
     def test_get_partition_key(self):
@@ -269,7 +273,7 @@ class PartitionTests(TestCase):
         """
         from testapp.models import Star, Tweet
         from parting.models import get_partition_key
-        tweet_partition = Tweet.partitions.ensure_partition('foo')
+        tweet_partition = Tweet.partitions.get_partition('foo')
         star_partition = Star.partitions.get_partition('foo')
 
         self.assertEqual('foo', get_partition_key(tweet_partition))

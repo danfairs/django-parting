@@ -68,79 +68,74 @@ class PartitionManager(object):
         ]
 
     # Utility methods
-    def get_partition(self, partition_key):
-        # Try to grab the required model
+    def get_partition(self, partition_key, create=True):
+        """ Get the partition for this model for partition_key. By default,
+        this will create the partition. Pass create=False to prevent this.
+        """
         app_label = self.model._meta.app_label
         model_name = self._model_name_for_partition(partition_key)
-        return get_model(app_label, model_name)
+        model = get_model(app_label, model_name)
+        if model is None and create:
+            return self._ensure_partition(partition_key)
+        else:
+            return model
 
-    def ensure_partition(self, partition_key):
-        """ Make sure a partition exists with the given partition key,
-        creating it if necessary.
-        """
-        logger.debug(
-            'Ensuring partition for model {} key {}'.format(
-                self.model,
-                partition_key))
-        model = self.get_partition(partition_key)
+    def _ensure_partition(self, partition_key):
+        # Actually do the legwork for generating a partition
+        logger.debug('Partition not found, generating')
+        model_name = self._model_name_for_partition(partition_key)
+        imp.acquire_lock()
+        try:
+            model = create_model(
+                model_name,
+                bases=(self.model,),
+                attrs={PARTITION_KEY: partition_key},
+                module_path=self.model.__module__)
 
-        # If we didn't get anything back, we need to generate the model.
-        if not model:
-            logger.debug('Partition not found, generating')
-            model_name = self._model_name_for_partition(partition_key)
-            imp.acquire_lock()
-            try:
-                model = create_model(
-                    model_name,
-                    bases=(self.model,),
-                    attrs={PARTITION_KEY: partition_key},
-                    module_path=self.model.__module__)
+            for name, manager in self.get_managers(model):
+                manager.contribute_to_class(model, name)
 
-                for name, manager in self.get_managers(model):
-                    manager.contribute_to_class(model, name)
+            # Make sure that we don't overwrite an existing name in the
+            # module. Raise an AttributeError if we look like we're about
+            # to.
+            module = sys.modules[self.model.__module__]
+            if getattr(module, model_name, _marker) is _marker:
+                setattr(module, model_name, model)
+            else:
+                raise AttributeError('{} already exists in {}'.format(
+                    model_name, module))
 
-                # Make sure that we don't overwrite an existing name in the
-                # module. Raise an AttributeError if we look like we're about
-                # to.
-                module = sys.modules[self.model.__module__]
-                if getattr(module, model_name, _marker) is _marker:
-                    setattr(module, model_name, model)
-                else:
-                    raise AttributeError('{} already exists in {}'.format(
-                        model_name, module))
+            logger.debug(
+                '{} generated, processing PartitionForeignKeys'.format(
+                    model))
 
-                logger.debug(
-                    '{} generated, processing PartitionForeignKeys'.format(
-                        model))
+            # Find any PartitionForeignKeys that point to our parent model,
+            # and generate partitions of those source models
+            pfks_to_remove = set()
+            for pfk in self.registry.foreign_keys_referencing(self.model):
+                if not hasattr(pfk.cls, '_partition_manager'):
+                    raise AttributeError(
+                        'Source model {} does not have a partition '
+                        'manager'.format(pfk.cls))
+                child = pfk.cls._partition_manager.get_partition(partition_key)
 
-                # Find any PartitionForeignKeys that point to our parent model,
-                # and generate partitions of those source models
-                pfks_to_remove = set()
-                for pfk in self.registry.foreign_keys_referencing(self.model):
-                    if not hasattr(pfk.cls, '_partition_manager'):
-                        raise AttributeError(
-                            'Source model {} does not have a partition '
-                            'manager'.format(pfk.cls))
-                    child = pfk.cls._partition_manager.ensure_partition(
-                        partition_key)
+                # Replace the placeholder with a real foreign key, and
+                # make sure internal caches are populated correctly
+                point(child, pfk.name, model, **pfk.kwargs)
+                pfks_to_remove.add(pfk)
+                self._fill_fields_cache(child._meta)
 
-                    # Replace the placeholder with a real foreign key, and
-                    # make sure internal caches are populated correctly
-                    point(child, pfk.name, model, **pfk.kwargs)
-                    pfks_to_remove.add(pfk)
-                    self._fill_fields_cache(child._meta)
-
-                # Make sure that there are no pfks hanging around
-                for pkf in pfks_to_remove:
-                    for lst in (child._meta.fields, child._meta.local_fields):
-                        for field in lst:
-                            if field.name == pkf.name and isinstance(
-                                    field,
-                                    PartitionForeignKey):
-                                lst.remove(field)
-                                break
-            finally:
-                imp.release_lock()
+            # Make sure that there are no pfks hanging around
+            for pkf in pfks_to_remove:
+                for lst in (child._meta.fields, child._meta.local_fields):
+                    for field in lst:
+                        if field.name == pkf.name and isinstance(
+                                field,
+                                PartitionForeignKey):
+                            lst.remove(field)
+                            break
+        finally:
+            imp.release_lock()
 
         return model
 

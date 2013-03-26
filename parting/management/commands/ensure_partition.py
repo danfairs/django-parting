@@ -31,7 +31,7 @@ class Command(BaseCommand):
 
         # First, make sure all the partition models have been generated
         for partition_name in self.get_partition_names(model):
-            model._partition_manager.ensure_partition(partition_name)
+            model._partition_manager.get_partition(partition_name)
 
         if only_sqlall:
             # We've been asked just to dump the SQL
