@@ -259,6 +259,20 @@ class PartitionTests(TestCase):
         with self.assertRaises(AttributeError):
             Tweet.partitions.ensure_partition('foo')
 
+    @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
+    def test_get_partition_key(self):
+        """ Check that we can find out what the partition key a model was
+        generated from. This can be useful if an application knows that
+        a number of related models were generated using the same key.
+        """
+        from testapp.models import Star, Tweet
+        from parting.models import partition_key
+        tweet_partition = Tweet.partitions.ensure_partition('foo')
+        star_partition = Star.partitions.get_partition('foo')
+
+        self.assertEqual('foo', partition_key(tweet_partition))
+        self.assertEqual('foo', partition_key(star_partition))
+
 
 class CommandTests(TransactionTestCase):
 

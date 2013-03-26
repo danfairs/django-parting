@@ -5,12 +5,17 @@ from django.db.models import Manager, get_model
 from django.db.models.fields.related import ManyToOneRel
 from dfk import DeferredForeignKey, point
 
+PARTITION_KEY = '_partition_key'
+
 logger = logging.getLogger(__file__)
 _marker = object()
 
 
-def is_partition(cls):
-    return getattr(cls, '_is_partition', False)
+def partition_key(cls, default=_marker):
+    if default is not _marker:
+        return getattr(cls, PARTITION_KEY, default)
+    else:
+        return getattr(cls, PARTITION_KEY)
 
 
 class PartitionRegistry(object):
@@ -20,11 +25,6 @@ class PartitionRegistry(object):
         # in child_models_for polluting the structure. This keeps a mapping
         # of parent model -> list of partitioned foreign keys
         self.partitioned_targets = {}
-
-        # A simple set of partitions. This is just used to figure out whether
-        # or not a particular model represents a partition, and avoids storing
-        # a nasty custom attribute on _meta, or something like that.
-        self.registered_partitions = set()
 
     def register_foreign_key(self, fk):
         self.partitioned_targets.setdefault(fk.to, []).append(fk)
@@ -93,7 +93,7 @@ class PartitionManager(object):
                 model = create_model(
                     model_name,
                     bases=(self.model,),
-                    attrs={'_is_partition': True},
+                    attrs={PARTITION_KEY: partition_key},
                     module_path=self.model.__module__)
 
                 for name, manager in self.get_managers(model):
@@ -193,7 +193,7 @@ class PartitionForeignKey(DeferredForeignKey):
         # be replaced. (It might be nice to figure out a way to do that here,
         # but we'd need to know which partition on of 'to' we should point
         # to.)
-        if not cls._meta.abstract and not is_partition(cls):
+        if not cls._meta.abstract and not partition_key(cls, None):
             raise AssertionError(
                 '{} uses a PartitionForeignKey and must therefore '
                 'be declared abstract'.format(cls))
