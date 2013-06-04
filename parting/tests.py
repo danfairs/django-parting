@@ -265,6 +265,20 @@ class PartitionTests(TestCase):
         with self.assertRaises(AttributeError):
             Tweet.partitions.get_partition('foo')
 
+    @cleanup_models('testapp.models.Tweet_foo')
+    def test_get_field_by_name(self):
+        """ Check that get_field_by_name on a foreign key that was
+        generated from a PartitionForeignKey returns a real FK, not the
+        PFK.
+        """
+        from testapp.models import Star, Tweet
+
+        Tweet.partitions.get_partition('foo')
+        star_partition = Star.partitions.get_partition('foo')
+
+        fk, _, _, _ = star_partition._meta.get_field_by_name('tweet')
+        self.assertTrue(isinstance(fk, models.ForeignKey))
+
     @cleanup_models('testapp.models.Tweet_foo', 'testapp.models.Star_foo')
     def test_get_partition_key(self):
         """ Check that we can find out what the partition key a model was

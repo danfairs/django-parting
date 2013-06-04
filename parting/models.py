@@ -179,6 +179,10 @@ class PartitionManager(object):
         ])
         model_meta._field_cache = tuple(cache)
         model_meta._field_name_cache = [x for x, _ in cache]
+        try:
+            del model_meta._name_map
+        except AttributeError:
+            pass
 
 
 class PartitionForeignKey(DeferredForeignKey):
